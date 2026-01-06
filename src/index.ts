@@ -846,12 +846,12 @@ server.registerTool(
 
       // Fetch user's traces
       const queryParams: any = {
-        userId,
+        user_id: userId,
         limit: limit || 20,
-        orderBy: 'timestamp',
+        order_by: 'timestamp',
       };
 
-      if (fromTimestamp) queryParams.fromTimestamp = fromTimestamp;
+      if (fromTimestamp) queryParams.from_timestamp = fromTimestamp;
 
       const result = await langfuse.api.traceList(queryParams);
       const traces = result.data || [];
