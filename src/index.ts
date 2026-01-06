@@ -140,11 +140,13 @@ server.server.setRequestHandler(ListPromptsRequestSchema, listPromptsHandler);
 server.server.setRequestHandler(GetPromptRequestSchema, getPromptHandler);
 
 // Tools for compatibility
-server.tool(
+server.registerTool(
   'get-prompts',
-  'Get prompts that are stored in Langfuse',
   {
-    cursor: z.string().optional().describe('Cursor to paginate through prompts'),
+    description: 'Get prompts that are stored in Langfuse',
+    inputSchema: {
+      cursor: z.string().optional().describe('Cursor to paginate through prompts'),
+    },
   },
   async (args) => {
     try {
@@ -156,7 +158,7 @@ server.tool(
       });
 
       const parsedRes: CallToolResult = {
-        content: res.prompts.map((p) => ({
+        content: res.prompts.map((p: ListPromptsResult['prompts'][number]) => ({
           type: 'text',
           text: JSON.stringify(p),
         })),
@@ -172,19 +174,21 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   'get-prompt',
-  'Get a prompt that is stored in Langfuse',
   {
-    name: z
-      .string()
-      .describe('Name of the prompt to retrieve, use get-prompts to get a list of prompts'),
-    arguments: z
-      .record(z.string())
-      .optional()
-      .describe(
-        'Arguments with prompt variables to pass to the prompt template, json object, e.g. {"<name>":"<value>"}'
-      ),
+    description: 'Get a prompt that is stored in Langfuse',
+    inputSchema: {
+      name: z
+        .string()
+        .describe('Name of the prompt to retrieve, use get-prompts to get a list of prompts'),
+      arguments: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe(
+          'Arguments with prompt variables to pass to the prompt template, json object, e.g. {"<name>":"<value>"}'
+        ),
+    },
   },
   async (args, _extra) => {
     try {
@@ -216,23 +220,24 @@ server.tool(
 );
 
 // Register the get_trace tool
-server.tool(
+server.registerTool(
   'get_trace',
-  'Fetches trace data from Langfuse using the provided trace ID.',
   {
-    // Inlined schema definition
-    traceId: z.string().describe('The ID of the Langfuse trace to fetch.'),
-    function_name: z
-      .string()
-      .optional()
-      .describe('Optional name of the function/observation to filter by within the trace'),
-    index: z
-      .number()
-      .int()
-      .optional()
-      .describe(
-        'Optional index (0-based) to select a specific function call if multiple matches are found for function_name'
-      ),
+    description: 'Fetches trace data from Langfuse using the provided trace ID.',
+    inputSchema: {
+      traceId: z.string().describe('The ID of the Langfuse trace to fetch.'),
+      function_name: z
+        .string()
+        .optional()
+        .describe('Optional name of the function/observation to filter by within the trace'),
+      index: z
+        .number()
+        .int()
+        .optional()
+        .describe(
+          'Optional index (0-based) to select a specific function call if multiple matches are found for function_name'
+        ),
+    },
   },
   async (args): Promise<CallToolResult> => {
     const cacheFilePath = path.join(cacheDir, `${args.traceId}.json`);
@@ -394,7 +399,9 @@ server.tool(
 // Phase 1: Core Data Fetching Tools
 
 // Add auth check tool first
-server.tool('auth-check', 'Verify Langfuse connection and authentication', {}, async () => {
+server.registerTool('auth-check', {
+  description: 'Verify Langfuse connection and authentication',
+}, async () => {
   try {
     console.debug(`Checking Langfuse authentication...`);
 
@@ -423,48 +430,51 @@ server.tool('auth-check', 'Verify Langfuse connection and authentication', {}, a
   }
 });
 
-server.tool(
+server.registerTool(
   'fetch-traces',
   {
-    page: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .describe('Page number for pagination (1-based, default: 1)'),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .describe('Number of traces per page (1-100, default: 10)'),
-    name: z.string().optional().describe('Filter traces by specific trace name (exact match)'),
-    userId: z
-      .string()
-      .optional()
-      .describe('Filter traces by user ID to see user-specific activities'),
-    sessionId: z
-      .string()
-      .optional()
-      .describe('Filter traces by session ID to group related interactions'),
-    fromTimestamp: z
-      .string()
-      .optional()
-      .describe(
-        "Filter traces from this timestamp (ISO 8601 format, e.g., '2024-01-01T00:00:00Z')"
-      ),
-    toTimestamp: z
-      .string()
-      .optional()
-      .describe('Filter traces until this timestamp (ISO 8601 format)'),
-    orderBy: z
-      .enum(['timestamp', 'id'])
-      .optional()
-      .describe('Order traces by timestamp (newest first) or id'),
-    tags: z.array(z.string()).optional().describe('Filter traces by tags (array of strings)'),
+    description: 'Fetch traces from Langfuse with filtering options and pagination',
+    inputSchema: {
+      page: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe('Page number for pagination (1-based, default: 1)'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe('Number of traces per page (1-100, default: 10)'),
+      name: z.string().optional().describe('Filter traces by specific trace name (exact match)'),
+      userId: z
+        .string()
+        .optional()
+        .describe('Filter traces by user ID to see user-specific activities'),
+      sessionId: z
+        .string()
+        .optional()
+        .describe('Filter traces by session ID to group related interactions'),
+      fromTimestamp: z
+        .string()
+        .optional()
+        .describe(
+          "Filter traces from this timestamp (ISO 8601 format, e.g., '2024-01-01T00:00:00Z')"
+        ),
+      toTimestamp: z
+        .string()
+        .optional()
+        .describe('Filter traces until this timestamp (ISO 8601 format)'),
+      orderBy: z
+        .enum(['timestamp', 'id'])
+        .optional()
+        .describe('Order traces by timestamp (newest first) or id'),
+      tags: z.array(z.string()).optional().describe('Filter traces by tags (array of strings)'),
+    },
   },
-  async ({ page, limit, name, userId, sessionId, fromTimestamp, toTimestamp, orderBy, tags }) => {
+  async ({ page, limit, name, userId, sessionId, fromTimestamp, toTimestamp, orderBy, tags }) => {                                                                                                                                   
     try {
       console.debug(`Fetching traces with filters:`, {
         page,
@@ -565,18 +575,20 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   'fetch-observations',
-  'Fetch observations from Langfuse with filtering options and pagination',
   {
-    page: z.number().int().min(1).optional().describe('Page number for pagination (1-based)'),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .describe('Number of observations per page (max 100)'),
+    description: 'Fetch observations from Langfuse with filtering options and pagination',
+    inputSchema: {
+      page: z.number().int().min(1).optional().describe('Page number for pagination (1-based)'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe('Number of observations per page (max 100)'),
+    },
   },
   async ({ page, limit }) => {
     try {
@@ -623,11 +635,13 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   'fetch-observation',
-  'Fetch a single observation from Langfuse by its ID',
   {
-    observationId: z.string().describe('The ID of the observation to retrieve'),
+    description: 'Fetch a single observation from Langfuse by its ID',
+    inputSchema: {
+      observationId: z.string().describe('The ID of the observation to retrieve'),
+    },
   },
   async ({ observationId }) => {
     try {
@@ -669,18 +683,20 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   'fetch-sessions',
-  'Fetch user sessions from Langfuse with pagination support',
   {
-    page: z.number().int().min(1).optional().describe('Page number for pagination (1-based)'),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .describe('Number of sessions per page (max 100)'),
+    description: 'Fetch user sessions from Langfuse with pagination support',
+    inputSchema: {
+      page: z.number().int().min(1).optional().describe('Page number for pagination (1-based)'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe('Number of sessions per page (max 100)'),
+    },
   },
   async ({ page, limit }) => {
     try {
@@ -715,11 +731,13 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   'get-trace-details',
-  'Get comprehensive trace details including user info, metadata, observations summary, and system data from Langfuse',
   {
-    traceId: z.string().describe('The ID of the Langfuse trace to fetch detailed information for'),
+    description: 'Get comprehensive trace details including user info, metadata, observations summary, and system data from Langfuse',
+    inputSchema: {
+      traceId: z.string().describe('The ID of the Langfuse trace to fetch detailed information for'),
+    },
   },
   async ({ traceId }) => {
     try {
@@ -803,22 +821,24 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   'analyze-user-activity',
-  'Analyze user activity and trace patterns for a specific user ID with comprehensive insights',
   {
-    userId: z.string().describe('The user ID to analyze activity patterns for'),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(50)
-      .optional()
-      .describe('Number of recent traces to analyze (default: 20)'),
-    fromTimestamp: z
-      .string()
-      .optional()
-      .describe('Analyze activity from this timestamp (ISO 8601 format)'),
+    description: 'Analyze user activity and trace patterns for a specific user ID with comprehensive insights',
+    inputSchema: {
+      userId: z.string().describe('The user ID to analyze activity patterns for'),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .optional()
+        .describe('Number of recent traces to analyze (default: 20)'),
+      fromTimestamp: z
+        .string()
+        .optional()
+        .describe('Analyze activity from this timestamp (ISO 8601 format)'),
+    },
   },
   async ({ userId, limit, fromTimestamp }) => {
     try {
